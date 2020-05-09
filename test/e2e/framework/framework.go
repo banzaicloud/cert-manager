@@ -33,6 +33,8 @@ import (
 	"k8s.io/client-go/rest"
 	apireg "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
+	istionetworkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	istionetworkingv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 
 	"github.com/jetstack/cert-manager/pkg/apis/certmanager/v1alpha2"
 	clientset "github.com/jetstack/cert-manager/pkg/client/clientset/versioned"
@@ -52,6 +54,9 @@ var Scheme = runtime.NewScheme()
 func init() {
 	kscheme.AddToScheme(Scheme)
 	certmgrscheme.AddToScheme(Scheme)
+	// TODO is this the proper place?
+	istionetworkingv1alpha3.AddToScheme(Scheme)
+	istionetworkingv1beta1.AddToScheme(Scheme)
 	apiext.AddToScheme(Scheme)
 	apireg.AddToScheme(Scheme)
 }

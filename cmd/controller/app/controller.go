@@ -38,6 +38,10 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
 	"k8s.io/utils/clock"
+	istioclientset "istio.io/client-go/pkg/clientset/versioned"
+	istioinformers "istio.io/client-go/pkg/informers/externalversions"
+	istionetworkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	istionetworkingv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 
 	"github.com/jetstack/cert-manager/cmd/controller/app/options"
 	"github.com/jetstack/cert-manager/pkg/acme/accounts"
@@ -187,6 +191,11 @@ func buildControllerContext(ctx context.Context, stopCh <-chan struct{}, opts *o
 		return nil, nil, fmt.Errorf("error creating kubernetes client: %s", err.Error())
 	}
 
+	istioClient, err := istioclientset.NewForConfig(kubeCfg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating istio group client: %s", err.Error())
+	}
+
 	nameservers := opts.DNS01RecursiveNameservers
 	if len(nameservers) == 0 {
 		nameservers = dnsutil.RecursiveNameservers
@@ -217,6 +226,9 @@ func buildControllerContext(ctx context.Context, stopCh <-chan struct{}, opts *o
 	// Add cert-manager types to the default Kubernetes Scheme so Events can be
 	// logged properly
 	intscheme.AddToScheme(scheme.Scheme)
+	// TODO is this the proper place?
+	istionetworkingv1alpha3.AddToScheme(scheme.Scheme)
+	istionetworkingv1beta1.AddToScheme(scheme.Scheme)
 	log.V(4).Info("creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.V(4).Infof)
@@ -225,6 +237,7 @@ func buildControllerContext(ctx context.Context, stopCh <-chan struct{}, opts *o
 
 	sharedInformerFactory := informers.NewSharedInformerFactoryWithOptions(intcl, time.Second*30, informers.WithNamespace(opts.Namespace))
 	kubeSharedInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(cl, time.Second*30, kubeinformers.WithNamespace(opts.Namespace))
+	istioSharedInformerFactory := istioinformers.NewSharedInformerFactoryWithOptions(istioClient, time.Second*30, istioinformers.WithNamespace(opts.Namespace))
 
 	acmeAccountRegistry := accounts.NewDefaultRegistry()
 
@@ -233,9 +246,11 @@ func buildControllerContext(ctx context.Context, stopCh <-chan struct{}, opts *o
 		StopCh:                    stopCh,
 		RESTConfig:                kubeCfg,
 		Client:                    cl,
+		IstioClient:               istioClient,
 		CMClient:                  intcl,
 		Recorder:                  recorder,
 		KubeSharedInformerFactory: kubeSharedInformerFactory,
+		IstioSharedInformerFactory:     istioSharedInformerFactory,
 		SharedInformerFactory:     sharedInformerFactory,
 		Namespace:                 opts.Namespace,
 		Clock:                     clock.RealClock{},
