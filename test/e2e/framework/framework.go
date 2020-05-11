@@ -23,6 +23,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	istionetworkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	istionetworkingv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	api "k8s.io/api/core/v1"
 	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -33,8 +35,6 @@ import (
 	"k8s.io/client-go/rest"
 	apireg "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
-	istionetworkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
-	istionetworkingv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 
 	"github.com/jetstack/cert-manager/pkg/apis/certmanager/v1alpha2"
 	clientset "github.com/jetstack/cert-manager/pkg/client/clientset/versioned"

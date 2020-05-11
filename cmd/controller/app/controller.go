@@ -23,6 +23,10 @@ import (
 	"sync"
 	"time"
 
+	istionetworkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	istionetworkingv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
+	istioclientset "istio.io/client-go/pkg/clientset/versioned"
+	istioinformers "istio.io/client-go/pkg/informers/externalversions"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,10 +42,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
 	"k8s.io/utils/clock"
-	istioclientset "istio.io/client-go/pkg/clientset/versioned"
-	istioinformers "istio.io/client-go/pkg/informers/externalversions"
-	istionetworkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
-	istionetworkingv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 
 	"github.com/jetstack/cert-manager/cmd/controller/app/options"
 	"github.com/jetstack/cert-manager/pkg/acme/accounts"
@@ -242,19 +242,19 @@ func buildControllerContext(ctx context.Context, stopCh <-chan struct{}, opts *o
 	acmeAccountRegistry := accounts.NewDefaultRegistry()
 
 	return &controller.Context{
-		RootContext:               ctx,
-		StopCh:                    stopCh,
-		RESTConfig:                kubeCfg,
-		Client:                    cl,
-		IstioClient:               istioClient,
-		CMClient:                  intcl,
-		Recorder:                  recorder,
-		KubeSharedInformerFactory: kubeSharedInformerFactory,
-		IstioSharedInformerFactory:     istioSharedInformerFactory,
-		SharedInformerFactory:     sharedInformerFactory,
-		Namespace:                 opts.Namespace,
-		Clock:                     clock.RealClock{},
-		Metrics:                   metrics.New(log),
+		RootContext:                ctx,
+		StopCh:                     stopCh,
+		RESTConfig:                 kubeCfg,
+		Client:                     cl,
+		IstioClient:                istioClient,
+		CMClient:                   intcl,
+		Recorder:                   recorder,
+		KubeSharedInformerFactory:  kubeSharedInformerFactory,
+		IstioSharedInformerFactory: istioSharedInformerFactory,
+		SharedInformerFactory:      sharedInformerFactory,
+		Namespace:                  opts.Namespace,
+		Clock:                      clock.RealClock{},
+		Metrics:                    metrics.New(log),
 		ACMEOptions: controller.ACMEOptions{
 			HTTP01SolverImage:                 opts.ACMEHTTP01SolverImage,
 			HTTP01SolverResourceRequestCPU:    HTTP01SolverResourceRequestCPU,

@@ -235,7 +235,7 @@ type ACMEChallengeSolverHTTP01IngressObjectMeta struct {
 
 type ACMEChallengeSolverHTTP01Istio struct {
 	GatewayNamespace string `json:"gatewayNamespace"`
-	GatewayName string `json:"gatewayName"`
+	GatewayName      string `json:"gatewayName"`
 }
 
 type ACMEChallengeSolverDNS01 struct {

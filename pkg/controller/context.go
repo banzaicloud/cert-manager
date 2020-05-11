@@ -20,14 +20,14 @@ import (
 	"context"
 	"time"
 
+	istioclientset "istio.io/client-go/pkg/clientset/versioned"
+	istioinformers "istio.io/client-go/pkg/informers/externalversions"
 	"k8s.io/apimachinery/pkg/api/resource"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
-	istioclientset "istio.io/client-go/pkg/clientset/versioned"
-	istioinformers "istio.io/client-go/pkg/informers/externalversions"
 
 	"github.com/jetstack/cert-manager/pkg/acme/accounts"
 	clientset "github.com/jetstack/cert-manager/pkg/client/clientset/versioned"
@@ -49,7 +49,7 @@ type Context struct {
 	// RESTConfig is the loaded Kubernetes apiserver rest client configuration
 	RESTConfig *rest.Config
 	// Client is a Kubernetes clientset
-	Client kubernetes.Interface
+	Client      kubernetes.Interface
 	IstioClient istioclientset.Interface
 	// CMClient is a cert-manager clientset
 	CMClient clientset.Interface
@@ -58,7 +58,7 @@ type Context struct {
 
 	// KubeSharedInformerFactory can be used to obtain shared
 	// SharedIndexInformer instances for Kubernetes types
-	KubeSharedInformerFactory kubeinformers.SharedInformerFactory
+	KubeSharedInformerFactory  kubeinformers.SharedInformerFactory
 	IstioSharedInformerFactory istioinformers.SharedInformerFactory
 	// SharedInformerFactory can be used to obtain shared SharedIndexInformer
 	// instances

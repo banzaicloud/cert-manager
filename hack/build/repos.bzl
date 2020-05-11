@@ -2715,3 +2715,11 @@ def go_repositories():
         sum = "h1:w7zILua2dnYo9CxImhpNW4NE/8ZxEoc/wfBfHrhUhrE=",
         version = "v0.0.0-20190930162913-45029607206a",
     )
+    go_repository(
+        name = "org_golang_x_mod",
+        build_file_generation = "on",
+        build_file_proto_mode = "disable",
+        importpath = "golang.org/x/mod",
+        sum = "h1:WG0RUwxtNT4qqaXX3DPA8zHFNm/D9xaBpxzHt1WcA/E=",
+        version = "v0.1.1-0.20191105210325-c90efee705ee",
+    )
