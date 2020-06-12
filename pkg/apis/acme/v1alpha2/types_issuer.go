@@ -234,8 +234,11 @@ type ACMEChallengeSolverHTTP01IngressObjectMeta struct {
 }
 
 type ACMEChallengeSolverHTTP01Istio struct {
-	GatewayNamespace string `json:"gatewayNamespace"`
-	GatewayName      string `json:"gatewayName"`
+	// +optional
+	GatewayNamespace string `json:"gatewayNamespace,omitempty"`
+
+	// +optional
+	GatewayName string `json:"gatewayName,omitempty"`
 }
 
 type ACMEChallengeSolverDNS01 struct {
