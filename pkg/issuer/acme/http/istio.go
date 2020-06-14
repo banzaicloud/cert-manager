@@ -2,54 +2,129 @@ package http
 
 import (
 	"context"
-	//"fmt"
-	//
-	//certmanagerv1alpha2 "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1alpha2"
-	//logf "github.com/jetstack/cert-manager/pkg/logs"
-	//extv1beta1 "k8s.io/api/extensions/v1beta1"
-	//"k8s.io/api/networking/v1beta1"
-	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//"k8s.io/apimachinery/pkg/types"
-	//ctrl "sigs.k8s.io/controller-runtime"
+	"fmt"
+	"reflect"
 
 	cmacme "github.com/jetstack/cert-manager/pkg/apis/acme/v1alpha2"
 	logf "github.com/jetstack/cert-manager/pkg/logs"
-	v1alpha3 "istio.io/api/networking/v1alpha3"
-	clientv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	istioapinetworking "istio.io/api/networking/v1beta1"
+	istioclientnetworking "istio.io/client-go/pkg/apis/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
-func (s *Solver) ensureIstio(ctx context.Context, ch *cmacme.Challenge, svcName string) (i *struct{}, err error) {
+func (s *Solver) ensureIstio(ctx context.Context, ch *cmacme.Challenge, svcName string) (bool *istioclientnetworking.VirtualService, err error) {
 	log := logf.FromContext(ctx).WithName("ensureIstio")
-	gateway, err := s.IstioClient.NetworkingV1alpha3().Gateways(ch.Namespace).Create(ctx, &clientv1alpha3.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName:    "cm-acme-http-solver-",
-			Namespace:       ch.Namespace,
-			Labels:          nil,
-			Annotations:     nil,
-			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(ch, challengeGvk)},
-		},
-		Spec: v1alpha3.Gateway{
-			Servers: []*v1alpha3.Server{
-				{
-					Port: &v1alpha3.Port{
-						Number:   12345,
-						Protocol: "HTTP",
-						Name:     "http",
-					},
-					Hosts: []string{ch.Spec.DNSName},
-				},
-			},
-			Selector: map[string]string{
-				"pitty": "putty",
-			},
-		},
-	}, metav1.CreateOptions{})
 
+	gateway, err := s.getGateway(ctx, ch)
 	if err != nil {
-		log.Error(err, "Sob")
 		return nil, err
 	}
-	log.Info("Yay!", "gateway", gateway)
-	return nil, nil
+	logf.WithRelatedResource(log, gateway).Info("found Gateway")
+
+	virtualservice, err := s.getVirtualService(ctx, ch)
+	if err != nil {
+		return nil, err
+	}
+
+	if virtualservice == nil {
+		log.Info("creating VirtualService")
+		virtualservice, err = s.createVirtualService(ctx, ch, svcName, gateway)
+		if err != nil {
+			return nil, err
+		}
+		logf.WithRelatedResource(log, virtualservice).Info("VirtualService created successfully")
+	} else {
+		logf.WithRelatedResource(log, virtualservice).Info("found VirtualService")
+	}
+
+	virtualservice, err = s.checkAndUpdateVirtualService(ctx, ch, svcName, gateway, virtualservice)
+	if err != nil {
+		return nil, err
+	}
+
+	return virtualservice, nil
+}
+
+func (s *Solver) getGateway(ctx context.Context, ch *cmacme.Challenge) (*istioclientnetworking.Gateway, error) {
+	http01Istio := ch.Spec.Solver.HTTP01.Istio
+	return s.IstioClient.NetworkingV1beta1().Gateways(http01Istio.GatewayNamespace).
+		Get(ctx, http01Istio.GatewayName, metav1.GetOptions{})
+}
+
+func (s *Solver) getVirtualService(ctx context.Context, ch *cmacme.Challenge) (*istioclientnetworking.VirtualService, error) {
+	http01Istio := ch.Spec.Solver.HTTP01.Istio
+	selector := labels.Set(podLabels(ch)).AsSelector()
+	vsList, err := s.IstioClient.NetworkingV1beta1().VirtualServices(http01Istio.GatewayNamespace).
+		List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, err
+	}
+	switch len(vsList.Items) {
+	case 0:
+		return nil, nil
+	case 1:
+		return &vsList.Items[0], nil
+	default:
+		// TODO delete all VirtualServices
+		return nil, fmt.Errorf("multiple VirtualServices found")
+	}
+}
+
+func (s *Solver) createVirtualService(ctx context.Context, ch *cmacme.Challenge, svcName string, gateway *istioclientnetworking.Gateway) (*istioclientnetworking.VirtualService, error) {
+	vs := &istioclientnetworking.VirtualService{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName:    "cm-acme-http-solver-",
+			Namespace:       gateway.Namespace,
+			Labels:          podLabels(ch),
+			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(ch, challengeGvk)},
+		},
+		Spec: createVirtualServiceSpec(ch, svcName, gateway),
+	}
+	return s.IstioClient.NetworkingV1beta1().VirtualServices(vs.Namespace).Create(ctx, vs, metav1.CreateOptions{})
+}
+
+func (s *Solver) checkAndUpdateVirtualService(ctx context.Context, ch *cmacme.Challenge, svcName string, gateway *istioclientnetworking.Gateway, virtualservice *istioclientnetworking.VirtualService) (*istioclientnetworking.VirtualService, error) {
+	log := logf.FromContext(ctx, "checkAndUpdateVirtualService")
+
+	needsUpdate := false
+
+	expectedSpec := createVirtualServiceSpec(ch, svcName, gateway)
+	if !reflect.DeepEqual(virtualservice.Spec, expectedSpec) {
+		needsUpdate = true
+		virtualservice.Spec = expectedSpec
+	}
+
+	if needsUpdate {
+		logf.WithRelatedResource(log, virtualservice).Info("Updating VirtualService")
+		return s.IstioClient.NetworkingV1beta1().VirtualServices(virtualservice.Namespace).Update(ctx, virtualservice, metav1.UpdateOptions{})
+	}
+
+	return virtualservice, nil
+}
+
+func createVirtualServiceSpec(ch *cmacme.Challenge, svcName string, gateway *istioclientnetworking.Gateway) istioapinetworking.VirtualService {
+	ingPath := ingressPath(ch.Spec.Token, svcName)
+
+	return istioapinetworking.VirtualService{
+		ExportTo: []string{"*"}, // TODO this should be "."
+		Hosts:    []string{ch.Spec.DNSName},
+		Gateways: []string{gateway.Namespace + "/" + gateway.Name},
+		Http: []*istioapinetworking.HTTPRoute{
+			{
+				Match: []*istioapinetworking.HTTPMatchRequest{
+					{Uri: &istioapinetworking.StringMatch{MatchType: &istioapinetworking.StringMatch_Exact{Exact: ingPath.Path}}},
+				},
+				Route: []*istioapinetworking.HTTPRouteDestination{
+					{
+						Destination: &istioapinetworking.Destination{
+							// TODO is ch.Namespace the correct namespace?
+							Host: fmt.Sprintf("%s.%s.svc.cluster.local", ingPath.Backend.ServiceName, ch.Namespace),
+							Port: &istioapinetworking.PortSelector{Number: acmeSolverListenPort},
+						},
+					},
+				},
+			},
+		},
+	}
 }
